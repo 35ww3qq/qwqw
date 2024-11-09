@@ -1,0 +1,240 @@
+/* Custom styles for Backlink System */
+
+/* Dark theme colors */
+:root {
+    --bg-primary: #1a1b23;
+    --bg-secondary: #2a2b36;
+    --text-primary: #ffffff;
+    --text-secondary: #9ca3af;
+    --accent-primary: #7367f0;
+    --accent-secondary: #4834d4;
+    --success: #28c76f;
+    --warning: #ff9f43;
+    --danger: #ea5455;
+    --border: #404656;
+}
+
+/* Base styles */
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* Navigation */
+.navbar {
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+}
+
+.nav-link {
+    color: var(--text-secondary);
+    transition: color 0.2s;
+}
+
+.nav-link:hover {
+    color: var(--accent-primary);
+}
+
+.nav-link.active {
+    color: var(--accent-primary);
+    border-bottom: 2px solid var(--accent-primary);
+}
+
+/* Cards */
+.card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+}
+
+/* Tables */
+.table {
+    color: var(--text-primary);
+}
+
+.table thead th {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border);
+}
+
+.table tbody tr {
+    border-bottom: 1px solid var(--border);
+}
+
+.table tbody tr:hover {
+    background-color: rgba(115, 103, 240, 0.1);
+}
+
+/* Status badges */
+.badge-success {
+    background-color: rgba(40, 199, 111, 0.2);
+    color: var(--success);
+}
+
+.badge-warning {
+    background-color: rgba(255, 159, 67, 0.2);
+    color: var(--warning);
+}
+
+.badge-danger {
+    background-color: rgba(234, 84, 85, 0.2);
+    color: var(--danger);
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-secondary);
+    border-color: var(--accent-secondary);
+}
+
+/* Forms */
+.form-control {
+    background-color: var(--bg-secondary);
+    border-color: var(--border);
+    color: var(--text-primary);
+}
+
+.form-control:focus {
+    background-color: var(--bg-secondary);
+    border-color: var(--accent-primary);
+    color: var(--text-primary);
+}
+
+/* Modals */
+.modal-content {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-footer {
+    border-top: 1px solid var(--border);
+}
+
+/* Tooltips */
+.tippy-box {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .table-responsive {
+        border: 0;
+    }
+    
+    .card {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Link Market specific styles */
+.link-card {
+    transition: transform 0.2s;
+}
+
+.link-card:hover {
+    transform: translateY(-2px);
+}
+
+.metrics {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.875rem;
+}
+
+.metric {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.metric-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.metric-icon.da {
+    background-color: rgba(40, 199, 111, 0.2);
+    color: var(--success);
+}
+
+.metric-icon.pa {
+    background-color: rgba(115, 103, 240, 0.2);
+    color: var(--accent-primary);
+}
+
+/* Package cards */
+.package-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    transition: transform 0.2s;
+}
+
+.package-card:hover {
+    transform: translateY(-2px);
+}
+
+.package-card .price {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+}
+
+.package-card .features {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.package-card .features li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-primary);
+}
