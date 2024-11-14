@@ -1,14 +1,15 @@
 <?php
-require_once 'includes/config.php';
-require_once 'includes/auth.php';
+require_once 'includes/init.php';
 require_once 'includes/security.php';
 
-$security = new Security();
-
+// Zaten giriş yapmışsa yönlendir
 if (check_auth()) {
     header('Location: ' . (is_admin() ? 'panel/admin/dashboard.php' : 'panel/customer/dashboard.php'));
     exit;
 }
+
+$security = new Security();
+$db = Database::getInstance()->getConnection();  // Database bağlantısını ekledik
 
 $error = '';
 $success = '';

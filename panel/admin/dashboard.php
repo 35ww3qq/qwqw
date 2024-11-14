@@ -1,217 +1,109 @@
 <?php
 require_once '../../includes/init.php';
-require_once '../../includes/auth.php';
 
 if (!check_auth() || !is_admin()) {
     header('Location: ../../login.php');
     exit;
 }
 
-$current_page = 'dashboard';
+// İstatistikleri al
+$stats = [];
 
-// Initialize stats array with default values
-$stats = [
-    'pending_sites' => 0,
-    'total_revenue' => 0,
-    'total_users' => 0,
-    'active_backlinks' => 0,
-    'verified_sites' => 0,
-    'total_credits' => 0
-];
+$stats['total_users'] = $db->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
+$stats['total_sites'] = $db->query("SELECT COUNT(*) as count FROM sites")->fetch_assoc()['count'];
+$stats['total_backlinks'] = $db->query("SELECT COUNT(*) as count FROM backlinks")->fetch_assoc()['count'];
 
-try {
-    // Get pending sites count
-    $result = $db->query("SELECT COUNT(*) FROM sites WHERE is_verified = 0");
-    if ($result && $row = $result->fetch_row()) {
-        $stats['pending_sites'] = $row[0];
-    }
-
-    // Get total revenue
-    $result = $db->query("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'completed'");
-    if ($result && $row = $result->fetch_row()) {
-        $stats['total_revenue'] = $row[0];
-    }
-
-    // Get total users (excluding admins)
-    $result = $db->query("SELECT COUNT(*) FROM users WHERE role != 'admin'");
-    if ($result && $row = $result->fetch_row()) {
-        $stats['total_users'] = $row[0];
-    }
-
-    // Get active backlinks count
-    $result = $db->query("SELECT COUNT(*) FROM backlinks WHERE status = 'active'");
-    if ($result && $row = $result->fetch_row()) {
-        $stats['active_backlinks'] = $row[0];
-    }
-
-    // Get verified sites count
-    $result = $db->query("SELECT COUNT(*) FROM sites WHERE is_verified = 1");
-    if ($result && $row = $result->fetch_row()) {
-        $stats['verified_sites'] = $row[0];
-    }
-
-    // Get total credits
-    $result = $db->query("SELECT COALESCE(SUM(credits), 0) FROM users");
-    if ($result && $row = $result->fetch_row()) {
-        $stats['total_credits'] = $row[0];
-    }
-
-    // Get last backlink check
-    $result = $db->query("SELECT MAX(last_checked) FROM backlinks");
-    $last_check = ($result && $row = $result->fetch_row()) ? $row[0] : null;
-
-    // Get recent activities
-    $activities = $db->query("
-        SELECT al.*, u.username 
-        FROM activity_log al
-        JOIN users u ON al.user_id = u.id
-        ORDER BY al.created_at DESC 
-        LIMIT 10
-    ");
-    $activities = $activities ? $activities->fetch_all(MYSQLI_ASSOC) : [];
-
-} catch (Exception $e) {
-    error_log("Admin dashboard error: " . $e->getMessage());
-    $error = "Bir hata oluştu. Lütfen daha sonra tekrar deneyin.";
-}
+// Son kayıt olan kullanıcılar
+$recent_users = $db->query("
+    SELECT username, email, created_at 
+    FROM users 
+    ORDER BY created_at DESC 
+    LIMIT 5
+")->fetch_all(MYSQLI_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Hacklink Market</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <link href="../css/admin.css" rel="stylesheet">
+    <title>Dashboard - Admin Panel</title>
+    <script>
+        window.SITE_URL = '<?php echo SITE_URL; ?>';
+        window.BASE_PATH = '<?php echo BASE_PATH; ?>';
+        window.API_BASE_URL = '<?php echo api_url(''); ?>';
+    </script>
+    <link href="<?php echo asset_url('css/tailwind.min.css'); ?>" rel="stylesheet">
+    <link href="<?php echo asset_url('css/fontawesome.min.css'); ?>" rel="stylesheet">
 </head>
-<body class="bg-gray-900">
-    <?php include '../includes/admin-nav.php'; ?>
+<body class="bg-gray-100">
+    <?php require_once '../../includes/admin-nav.php'; ?>
 
     <div class="container mx-auto px-4 py-8">
-        <?php if (isset($error)): ?>
-            <div class="bg-red-900 text-red-100 px-4 py-3 rounded mb-4">
-                <?php echo htmlspecialchars($error); ?>
-            </div>
-        <?php endif; ?>
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold">Admin Dashboard</h1>
+        </div>
 
-        <!-- Top Stats -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <!-- Pending Sites -->
-            <div class="bg-orange-500 text-white rounded-lg p-6">
-                <h3 class="text-lg font-semibold mb-2">Bekleyen Siteler</h3>
-                <p class="text-4xl font-bold"><?php echo number_format($stats['pending_sites']); ?></p>
+            <!-- İstatistikler -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="text-gray-500 mb-2">
+                    <i class="fas fa-users text-2xl"></i>
+                </div>
+                <div class="text-2xl font-bold mb-1"><?php echo $stats['total_users']; ?></div>
+                <div class="text-gray-600">Toplam Kullanıcı</div>
             </div>
 
-            <!-- Total Revenue -->
-            <div class="bg-emerald-500 text-white rounded-lg p-6">
-                <h3 class="text-lg font-semibold mb-2">Toplam Gelir</h3>
-                <p class="text-4xl font-bold"><?php echo number_format($stats['total_revenue'], 2); ?> TL</p>
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="text-gray-500 mb-2">
+                    <i class="fas fa-globe text-2xl"></i>
+                </div>
+                <div class="text-2xl font-bold mb-1"><?php echo $stats['total_sites']; ?></div>
+                <div class="text-gray-600">Toplam Site</div>
             </div>
 
-            <!-- Backlink Check -->
-            <div class="bg-blue-500 text-white rounded-lg p-6">
-                <h3 class="text-lg font-semibold mb-2">Backlink Kontrolü</h3>
-                <p class="text-sm">Son kontrol: <?php echo $last_check ? date('d.m.Y H:i', strtotime($last_check)) : 'Henüz kontrol yapılmadı'; ?></p>
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <div class="text-gray-500 mb-2">
+                    <i class="fas fa-link text-2xl"></i>
+                </div>
+                <div class="text-2xl font-bold mb-1"><?php echo $stats['total_backlinks']; ?></div>
+                <div class="text-gray-600">Toplam Backlink</div>
             </div>
         </div>
 
-        <!-- Stats Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <!-- Total Users -->
-            <div class="bg-gray-800 rounded-lg p-6">
-                <div class="flex items-center">
-                    <div class="p-3 rounded-full bg-blue-900 text-blue-300">
-                        <i class="fas fa-users text-2xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-gray-400">Toplam Kullanıcı</p>
-                        <h3 class="text-2xl font-bold text-white"><?php echo number_format($stats['total_users']); ?></h3>
-                    </div>
-                </div>
+        <!-- Son kayıt olan kullanıcılar -->
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-semibold">Son Kayıt Olan Kullanıcılar</h2>
             </div>
-
-            <!-- Active Backlinks -->
-            <div class="bg-gray-800 rounded-lg p-6">
-                <div class="flex items-center">
-                    <div class="p-3 rounded-full bg-green-900 text-green-300">
-                        <i class="fas fa-link text-2xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-gray-400">Aktif Backlink</p>
-                        <h3 class="text-2xl font-bold text-white"><?php echo number_format($stats['active_backlinks']); ?></h3>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Verified Sites -->
-            <div class="bg-gray-800 rounded-lg p-6">
-                <div class="flex items-center">
-                    <div class="p-3 rounded-full bg-purple-900 text-purple-300">
-                        <i class="fas fa-check-circle text-2xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-gray-400">Doğrulanmış Site</p>
-                        <h3 class="text-2xl font-bold text-white"><?php echo number_format($stats['verified_sites']); ?></h3>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Total Credits -->
-            <div class="bg-gray-800 rounded-lg p-6">
-                <div class="flex items-center">
-                    <div class="p-3 rounded-full bg-yellow-900 text-yellow-300">
-                        <i class="fas fa-coins text-2xl"></i>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-gray-400">Toplam Kredi</p>
-                        <h3 class="text-2xl font-bold text-white"><?php echo number_format($stats['total_credits']); ?></h3>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Recent Activity -->
-        <div class="bg-gray-800 rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-white mb-4">Son Aktiviteler</h2>
             <div class="overflow-x-auto">
-                <table class="min-w-full">
+                <table class="min-w-full divide-y divide-gray-200">
                     <thead>
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Kullanıcı</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">İşlem</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Detay</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Tarih</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Kullanıcı Adı</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Kayıt Tarihi</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-700">
-                        <?php foreach ($activities as $activity): ?>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <?php foreach ($recent_users as $user): ?>
                         <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-300">
-                                <?php echo htmlspecialchars($activity['username']); ?>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <?php echo htmlspecialchars($user['username']); ?>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-300">
-                                <?php echo htmlspecialchars($activity['action']); ?>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <?php echo htmlspecialchars($user['email']); ?>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-300">
-                                <?php echo htmlspecialchars($activity['details']); ?>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-300">
-                                <?php echo date('d.m.Y H:i', strtotime($activity['created_at'])); ?>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <?php echo date('d.m.Y H:i', strtotime($user['created_at'])); ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
-                        <?php if (empty($activities)): ?>
-                        <tr>
-                            <td colspan="4" class="px-6 py-4 text-center text-gray-400">
-                                Henüz aktivite bulunmuyor
-                            </td>
-                        </tr>
-                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
+
+    <script src="../../assets/js/app.js"></script>
 </body>
 </html>

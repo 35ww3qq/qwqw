@@ -1,260 +1,182 @@
 <?php
-require_once '../../includes/auth.php';
-require_once '../../includes/security.php';
+require_once '../../includes/init.php';
 
-header('Content-Type: application/json');
+// CORS headers
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
+header('Access-Control-Allow-Headers: Content-Type');
 
 if (!check_auth() || !is_admin()) {
     http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
+    exit(json_encode(['error' => 'Unauthorized']));
 }
 
-$security = new Security();
+if (!$security->validateRequest()) {
+    http_response_code(403);
+    exit(json_encode(['error' => 'Invalid request']));
+}
 
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $user_id = $_GET['id'] ?? null;
-    
-    if ($user_id) {
-        // Get specific user
-        $stmt = $db->prepare("SELECT id, username, email, role, credits, is_active, created_at, last_login FROM users WHERE id = ?");
-        $stmt->bind_param("i", $user_id);
-        $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
+$response = ['success' => false];
+
+switch ($_SERVER['REQUEST_METHOD']) {
+    case 'GET':
+        $user_id = $_GET['id'] ?? null;
         
-        if (!$user) {
-            http_response_code(404);
-            echo json_encode(['error' => 'User not found']);
-            exit;
-        }
-        
-        echo json_encode(['success' => true, 'user' => $user]);
-    } else {
-        // Get all users with pagination
-        $page = $_GET['page'] ?? 1;
-        $limit = 20;
-        $offset = ($page - 1) * $limit;
-        
-        $total = $db->query("SELECT COUNT(*) FROM users")->fetch_row()[0];
-        
-        $users = $db->query("
-            SELECT id, username, email, role, credits, is_active, created_at, last_login 
-            FROM users 
-            ORDER BY created_at DESC 
-            LIMIT $offset, $limit
-        ")->fetch_all(MYSQLI_ASSOC);
-        
-        echo json_encode([
-            'success' => true,
-            'users' => $users,
-            'pagination' => [
+        if ($user_id) {
+            // Tek kullanıcı detayı
+            $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $response['data'] = $stmt->get_result()->fetch_assoc();
+            $response['success'] = true;
+        } else {
+            // Tüm kullanıcılar
+            $page = $_GET['page'] ?? 1;
+            $limit = $_GET['limit'] ?? 10;
+            $offset = ($page - 1) * $limit;
+            
+            $total = $db->query("SELECT COUNT(*) as count FROM users")->fetch_assoc()['count'];
+            
+            $stmt = $db->prepare("
+                SELECT u.*, 
+                       COUNT(DISTINCT s.id) as site_count,
+                       COUNT(DISTINCT b.id) as backlink_count
+                FROM users u
+                LEFT JOIN sites s ON u.id = s.user_id
+                LEFT JOIN backlinks b ON s.id = b.site_id
+                GROUP BY u.id
+                ORDER BY u.created_at DESC
+                LIMIT ?, ?
+            ");
+            $stmt->bind_param("ii", $offset, $limit);
+            $stmt->execute();
+            
+            $response['data'] = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $response['pagination'] = [
                 'total' => $total,
                 'page' => $page,
+                'limit' => $limit,
                 'pages' => ceil($total / $limit)
-            ]
-        ]);
-    }
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    
-    if (!isset($data['username'], $data['email'], $data['password'])) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Missing required fields']);
-        exit;
-    }
-    
-    $username = $data['username'];
-    $email = $data['email'];
-    $password = $data['password'];
-    $role = $data['role'] ?? 'customer';
-    $credits = $data['credits'] ?? 0;
-    
-    // Validate input
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Invalid email']);
-        exit;
-    }
-    
-    if (strlen($password) < 8) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Password too short']);
-        exit;
-    }
-    
-    // Check if username or email exists
-    $stmt = $db->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
-    $stmt->bind_param("ss", $username, $email);
-    $stmt->execute();
-    
-    if ($stmt->get_result()->num_rows > 0) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Username or email already exists']);
-        exit;
-    }
-    
-    // Create user
-    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-    $stmt = $db->prepare("
-        INSERT INTO users (username, email, password, role, credits, created_at) 
-        VALUES (?, ?, ?, ?, ?, NOW())
-    ");
-    
-    $stmt->bind_param("ssssi", $username, $email, $hashed_password, $role, $credits);
-    
-    if ($stmt->execute()) {
-        $user_id = $db->insert_id;
-        echo json_encode(['success' => true, 'user_id' => $user_id]);
-    } else {
-        http_response_code(500);
-        echo json_encode(['error' => 'Failed to create user']);
-    }
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'PUT') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    $user_id = $data['id'] ?? null;
-    
-    if (!$user_id) {
-        http_response_code(400);
-        echo json_encode(['error' => 'User ID required']);
-        exit;
-    }
-    
-    $updates = [];
-    $params = [];
-    $types = "";
-    
-    if (isset($data['email'])) {
-        if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Invalid email']);
-            exit;
+            ];
         }
-        $updates[] = "email = ?";
-        $params[] = $data['email'];
-        $types .= "s";
-    }
-    
-    if (isset($data['password'])) {
-        if (strlen($data['password']) < 8) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Password too short']);
-            exit;
+        break;
+        
+    case 'POST':
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (empty($data['username']) || empty($data['email']) || empty($data['password'])) {
+            $response['error'] = 'Tüm alanlar gereklidir';
+            break;
         }
-        $updates[] = "password = ?";
-        $params[] = password_hash($data['password'], PASSWORD_DEFAULT);
-        $types .= "s";
-    }
-    
-    if (isset($data['role'])) {
-        $updates[] = "role = ?";
-        $params[] = $data['role'];
-        $types .= "s";
-    }
-    
-    if (isset($data['credits'])) {
-        $updates[] = "credits = ?";
-        $params[] = $data['credits'];
-        $types .= "i";
-    }
-    
-    if (isset($data['is_active'])) {
-        $updates[] = "is_active = ?";
-        $params[] = $data['is_active'];
-        $types .= "i";
-    }
-    
-    if (empty($updates)) {Let's continue with the next 5 files:
-
-<boltArtifact id="backlink-system-part2" title="Backlink System Files - Part 2">
-<boltAction type="file" filePath="panel/api/stats.php"><?php
-require_once '../../includes/auth.php';
-require_once '../../includes/security.php';
+        
+        $stmt = $db->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+        $stmt->bind_param("ss", $data['username'], $data['email']);
+        $stmt->execute();
+        
+        if ($stmt->get_result()->num_rows > 0) {
+            $response['error'] = 'Bu kullanıcı adı veya email zaten kullanılıyor';
+            break;
+        }
+        
+        $hashed_password = password_hash($data['password'], PASSWORD_DEFAULT);
+        $stmt = $db->prepare("
+            INSERT INTO users (username, email, password, is_admin, credits) 
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $is_admin = $data['is_admin'] ?? 0;
+        $credits = $data['credits'] ?? 10;
+        $stmt->bind_param("ssiii", $data['username'], $data['email'], $hashed_password, $is_admin, $credits);
+        
+        if ($stmt->execute()) {
+            $response['success'] = true;
+            $response['id'] = $stmt->insert_id;
+        } else {
+            $response['error'] = 'Kullanıcı eklenirken bir hata oluştu';
+        }
+        break;
+        
+    case 'PUT':
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (empty($data['id'])) {
+            $response['error'] = 'Kullanıcı ID gereklidir';
+            break;
+        }
+        
+        $updates = [];
+        $params = [];
+        $types = '';
+        
+        if (isset($data['username'])) {
+            $updates[] = "username = ?";
+            $params[] = $data['username'];
+            $types .= 's';
+        }
+        
+        if (isset($data['email'])) {
+            $updates[] = "email = ?";
+            $params[] = $data['email'];
+            $types .= 's';
+        }
+        
+        if (!empty($data['password'])) {
+            $updates[] = "password = ?";
+            $params[] = password_hash($data['password'], PASSWORD_DEFAULT);
+            $types .= 's';
+        }
+        
+        if (isset($data['is_admin'])) {
+            $updates[] = "is_admin = ?";
+            $params[] = $data['is_admin'];
+            $types .= 'i';
+        }
+        
+        if (isset($data['credits'])) {
+            $updates[] = "credits = ?";
+            $params[] = $data['credits'];
+            $types .= 'i';
+        }
+        
+        if (empty($updates)) {
+            $response['error'] = 'Güncellenecek alan bulunamadı';
+            break;
+        }
+        
+        $params[] = $data['id'];
+        $types .= 'i';
+        
+        $sql = "UPDATE users SET " . implode(", ", $updates) . " WHERE id = ?";
+        $stmt = $db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        
+        $response['success'] = $stmt->execute();
+        if (!$response['success']) {
+            $response['error'] = 'Kullanıcı güncellenirken bir hata oluştu';
+        }
+        break;
+        
+    case 'DELETE':
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (empty($data['id'])) {
+            $response['error'] = 'Kullanıcı ID gereklidir';
+            break;
+        }
+        
+        if ($data['id'] == $_SESSION['user_id']) {
+            $response['error'] = 'Kendinizi silemezsiniz';
+            break;
+        }
+        
+        $stmt = $db->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->bind_param("i", $data['id']);
+        
+        $response['success'] = $stmt->execute();
+        if (!$response['success']) {
+            $response['error'] = 'Kullanıcı silinirken bir hata oluştu';
+        }
+        break;
+}
 
 header('Content-Type: application/json');
-
-if (!check_auth()) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
-
-$security = new Security();
-$user_id = $_SESSION['user_id'];
-
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $period = $_GET['period'] ?? '30days';
-    
-    switch ($period) {
-        case '7days':
-            $interval = '7 DAY';
-            break;
-        case '30days':
-            $interval = '30 DAY';
-            break;
-        case '90days':
-            $interval = '90 DAY';
-            break;
-        default:
-            $interval = '30 DAY';
-    }
-    
-    // Get backlink stats
-    $backlink_stats = $db->query("
-        SELECT 
-            status,
-            COUNT(*) as count
-        FROM backlinks b
-        JOIN sites s ON b.site_id = s.id
-        WHERE s.user_id = $user_id
-        GROUP BY status
-    ")->fetch_all(MYSQLI_ASSOC);
-    
-    // Get daily backlink additions
-    $daily_stats = $db->query("
-        SELECT 
-            DATE(created_at) as date,
-            COUNT(*) as count
-        FROM backlinks b
-        JOIN sites s ON b.site_id = s.id
-        WHERE s.user_id = $user_id
-        AND created_at >= DATE_SUB(NOW(), INTERVAL $interval)
-        GROUP BY DATE(created_at)
-        ORDER BY date
-    ")->fetch_all(MYSQLI_ASSOC);
-    
-    // Get site stats
-    $site_stats = $db->query("
-        SELECT
-            COUNT(*) as total_sites,
-            SUM(CASE WHEN is_verified = 1 THEN 1 ELSE 0 END) as verified_sites
-        FROM sites
-        WHERE user_id = $user_id
-    ")->fetch_assoc();
-    
-    // Get credit usage
-    $credit_usage = $db->query("
-        SELECT 
-            DATE(created_at) as date,
-            COUNT(*) as credits_used
-        FROM backlinks b
-        JOIN sites s ON b.site_id = s.id
-        WHERE s.user_id = $user_id
-        AND created_at >= DATE_SUB(NOW(), INTERVAL $interval)
-        GROUP BY DATE(created_at)
-        ORDER BY date
-    ")->fetch_all(MYSQLI_ASSOC);
-    
-    echo json_encode([
-        'success' => true,
-        'stats' => [
-            'backlinks' => $backlink_stats,
-            'daily' => $daily_stats,
-            'sites' => $site_stats,
-            'credits' => $credit_usage
-        ]
-    ]);
-}
+echo json_encode($response);    

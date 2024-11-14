@@ -1,6 +1,9 @@
 <?php
+require_once '../../includes/init.php';
+require_once '../../includes/functions.php';
 require_once '../../includes/auth.php';
 require_once '../../includes/security.php';
+
 
 if (!check_auth()) {
     header('Location: ../../login.php');

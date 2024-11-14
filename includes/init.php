@@ -1,31 +1,39 @@
 <?php
-// Start session if not already started
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+// Tek başlangıç noktası
+session_start();
+
+// Doğru yol tanımlamaları
+define('ROOT_PATH', dirname(__DIR__));
+require_once ROOT_PATH . '/includes/config.php';
+require_once ROOT_PATH . '/includes/database.php';
+require_once ROOT_PATH . '/includes/security.php';
+require_once ROOT_PATH . '/includes/functions.php';
+require_once ROOT_PATH . '/includes/auth.php';
+
+// Global DB instance
+$db = Database::getInstance()->getConnection();
+
+// Global security instance  
+$security = new Security();
+
+// Error handler functions
+function customErrorHandler($errno, $errstr, $errfile, $errline) {
+    error_log("Error [$errno]: $errstr in $errfile on line $errline");
+    return true;
 }
 
-// Load configuration
-require_once __DIR__ . '/../config.php';
-
-// Create logs directory if it doesn't exist
-if (!file_exists(__DIR__ . '/../logs')) {
-    mkdir(__DIR__ . '/../logs', 0755, true);
-}
-
-// Initialize database connection
-try {
-    $db = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-    if ($db->connect_error) {
-        throw new Exception("Database connection failed: " . $db->connect_error);
+function customExceptionHandler($exception) {
+    error_log("Exception: " . $exception->getMessage() . "\n" . $exception->getTraceAsString());
+    http_response_code(500);
+    
+    if (defined('DEBUG_MODE') && DEBUG_MODE) {
+        die("A system error occurred: " . htmlspecialchars($exception->getMessage()));
+    } else {
+        die("A system error occurred. Please try again later.");
     }
-    $db->set_charset('utf8mb4');
-    $db->query("SET SESSION sql_mode = ''");
-} catch (Exception $e) {
-    error_log("Database connection error: " . $e->getMessage());
-    die("Database connection failed. Please check your configuration.");
 }
 
-// Load core files
-require_once __DIR__ . '/auth.php';
-require_once __DIR__ . '/security.php';
-require_once __DIR__ . '/functions.php';
+// Error handling
+set_error_handler('customErrorHandler');
+set_exception_handler('customExceptionHandler');
+?>

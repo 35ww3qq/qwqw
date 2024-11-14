@@ -3,7 +3,6 @@ require_once '../../includes/init.php';
 require_once '../../includes/auth.php';
 require_once '../../includes/security.php';
 
-// Check authentication and admin role
 if (!check_auth() || !is_admin()) {
     header('Location: ../../login.php');
     exit;
@@ -15,39 +14,21 @@ $current_page = 'sites';
 // Handle site actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $security->validateCSRF()) {
     $action = $_POST['action'] ?? '';
-    $site_id = (int)$_POST['site_id'] ?? 0;
+    $site_id = $_POST['site_id'] ?? 0;
     
     switch ($action) {
         case 'verify':
-            if ($site_id > 0) {
-                $db->query("UPDATE sites SET is_verified = 1 WHERE id = $site_id");
-                // Log activity
-                log_activity($user_id, 'verify_site', "Site ID: $site_id verified");
-            }
+            $db->query("UPDATE sites SET is_verified = 1 WHERE id = $site_id");
             break;
             
         case 'delete':
-            if ($site_id > 0) {
-                $db->begin_transaction();
-                try {
-                    // Delete backlinks first
-                    $db->query("DELETE FROM backlinks WHERE site_id = $site_id");
-                    // Then delete site
-                    $db->query("DELETE FROM sites WHERE id = $site_id");
-                    $db->commit();
-                    // Log activity
-                    log_activity($user_id, 'delete_site', "Site ID: $site_id deleted");
-                } catch (Exception $e) {
-                    $db->rollback();
-                    error_log("Error deleting site: " . $e->getMessage());
-                }
-            }
+            $db->query("DELETE FROM sites WHERE id = $site_id");
             break;
     }
 }
 
 // Get sites with pagination
-$page = max(1, $_GET['page'] ?? 1);
+$page = $_GET['page'] ?? 1;
 $limit = 20;
 $offset = ($page - 1) * $limit;
 
@@ -57,8 +38,7 @@ $total_pages = ceil($total_sites / $limit);
 $sites = $db->query("
     SELECT s.*, 
            u.username,
-           COUNT(b.id) as backlink_count,
-           MAX(b.last_checked) as last_check
+           COUNT(b.id) as backlink_count
     FROM sites s
     JOIN users u ON s.user_id = u.id
     LEFT JOIN backlinks b ON s.id = b.site_id
@@ -93,7 +73,7 @@ $sites = $db->query("
                             <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Kullanıcı</th>
                             <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Durum</th>
                             <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Backlink</th>
-                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Son Kontrol</th>
+                            <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Eklenme</th>
                             <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">İşlemler</th>
                         </tr>
                     </thead>
@@ -103,9 +83,6 @@ $sites = $db->query("
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">
                                     <?php echo htmlspecialchars($site['domain']); ?>
-                                </div>
-                                <div class="text-xs text-gray-500">
-                                    <?php echo date('d.m.Y H:i', strtotime($site['created_at'])); ?>
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -131,12 +108,9 @@ $sites = $db->query("
                                 <?php echo $site['backlink_count']; ?>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <?php echo $site['last_check'] ? date('d.m.Y H:i', strtotime($site['last_check'])) : '-'; ?>
+                                <?php echo date('d.m.Y H:i', strtotime($site['created_at'])); ?>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <a href="backlinks.php?site_id=<?php echo $site['id']; ?>" class="text-blue-600 hover:text-blue-900 mr-3">
-                                    <i class="fas fa-link"></i>
-                                </a>
                                 <form method="POST" action="" class="inline" onsubmit="return confirm('Bu siteyi silmek istediğinizden emin misiniz?');">
                                     <input type="hidden" name="csrf_token" value="<?php echo $security->getCSRFToken(); ?>">
                                     <input type="hidden" name="action" value="delete">
@@ -148,14 +122,6 @@ $sites = $db->query("
                             </td>
                         </tr>
                         <?php endforeach; ?>
-                        
-                        <?php if (empty($sites)): ?>
-                        <tr>
-                            <td colspan="6" class="px-6 py-4 text-center text-gray-500">
-                                Henüz site eklenmemiş
-                            </td>
-                        </tr>
-                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -183,12 +149,5 @@ $sites = $db->query("
             <?php endif; ?>
         </div>
     </div>
-
-    <script>
-    // Add any JavaScript functionality here
-    document.addEventListener('DOMContentLoaded', function() {
-        // Initialize any components if needed
-    });
-    </script>
 </body>
 </html>

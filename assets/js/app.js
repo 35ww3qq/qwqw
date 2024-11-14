@@ -1,216 +1,179 @@
-// Main application JavaScript
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize tooltips
-    initTooltips();
-    
-    // Initialize notifications
-    initNotifications();
-    
-    // Setup theme switcher
-    setupThemeSwitcher();
-    
-    // Setup navigation
-    setupNavigation();
-});
-
-// Tooltip initialization
-function initTooltips() {
-    tippy('[data-tooltip]', {
-        theme: 'dark',
-        placement: 'top',
-        animation: 'fade'
-    });
+if (typeof window.app !== 'undefined') {
+    console.warn('app is already defined');
 }
 
-// Notification system
-const notifications = {
-    show(message, type = 'info', duration = 3000) {
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type} fade-in`;
-        notification.innerHTML = `
-            <div class="notification-content">
-                <i class="fas fa-${type === 'success' ? 'check-circle' : 
-                                type === 'error' ? 'exclamation-circle' : 
-                                'info-circle'}"></i>
-                <span>${message}</span>
-            </div>
-        `;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.remove();
-        }, duration);
-    },
-    
-    success(message, duration) {
-        this.show(message, 'success', duration);
-    },
-    
-    error(message, duration) {
-        this.show(message, 'error', duration);
-    },
-    
-    info(message, duration) {
-        this.show(message, 'info', duration);
-    }
-};
+window.app = {
+    // Utility functions
+    async request(url, options = {}) {
+        try {
+            // API URL'ini window.API_BASE_URL'den al
+            const apiUrl = url.startsWith('http') 
+                ? url 
+                : window.API_BASE_URL + url.replace(/^(?:\.\.\/)*(?:panel\/)?(?:api\/)?/, '');
 
-function initNotifications() {
-    // Add notification styles
-    const style = document.createElement('style');
-    style.textContent = `
-        .notification {
-            position: fixed;
-            top: 1rem;
-            right: 1rem;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            z-index: 1000;
-            min-width: 300px;
-            max-width: 500px;
-        }
-        
-        .notification-content {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-        
-        .notification i {
-            font-size: 1.25rem;
-        }
-        
-        .notification-success i {
-            color: var(--success);
-        }
-        
-        .notification-error i {
-            color: var(--danger);
-        }
-        
-        .notification-info i {
-            color: var(--accent-primary);
-        }
-    `;
-    document.head.appendChild(style);
-}
+            console.log('API Request URL:', apiUrl);
 
-// Theme switcher
-function setupThemeSwitcher() {
-    const themeToggle = document.getElementById('theme-toggle');
-    if (!themeToggle) return;
-    
-    const currentTheme = localStorage.getItem('theme') || 'dark';
-    document.documentElement.setAttribute('data-theme', currentTheme);
-    
-    themeToggle.addEventListener('click', () => {
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
-    });
-}
-
-// Navigation
-function setupNavigation() {
-    const currentPath = window.location.pathname;
-    const navLinks = document.querySelectorAll('.nav-link');
-    
-    navLinks.forEach(link => {
-        if (link.getAttribute('href') === currentPath) {
-            link.classList.add('active');
-        }
-        
-        // Add hover animation
-        link.addEventListener('mouseenter', () => {
-            if (!link.classList.contains('active')) {
-                link.style.transform = 'translateY(-2px)';
-            }
-        });
-        
-        link.addEventListener('mouseleave', () => {
-            link.style.transform = 'translateY(0)';
-        });
-    });
-}
-
-// Modal system
-const modal = {
-    show(title, content) {
-        return new Promise(resolve => {
-            const modalElement = document.createElement('div');
-            modalElement.className = 'modal fade-in';
-            modalElement.innerHTML = `
-                <div class="modal-backdrop"></div>
-                <div class="modal-container">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h3>${title}</h3>
-                            <button class="modal-close">&times;</button>
-                        </div>
-                        <div class="modal-body"></div>
-                        <div class="modal-footer">
-                            <button class="btn btn-secondary modal-cancel">İptal</button>
-                            <button class="btn btn-primary modal-confirm">Tamam</button>
-                        </div>
-                    </div>
-                </div>
-            `;
+            const csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
             
-            const modalBody = modalElement.querySelector('.modal-body');
-            if (typeof content === 'string') {
-                modalBody.innerHTML = content;
+            const response = await fetch(apiUrl, {
+                ...options,
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    ...options.headers
+                }
+            });
+            
+            if (response.status === 401) {
+                window.location.href = window.SITE_URL + '/login.php';
+                return;
+            }
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Bir hata oluştu');
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('Request error:', error);
+            if (error.message === 'Failed to fetch') {
+                alert('Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.');
             } else {
-                modalBody.appendChild(content);
+                alert(error.message);
             }
-            
-            document.body.appendChild(modalElement);
-            
-            // Handle close
-            const close = () => {
-                modalElement.classList.add('fade-out');
-                setTimeout(() => modalElement.remove(), 300);
-            };
-            
-            modalElement.querySelector('.modal-close').onclick = () => {
-                close();
-                resolve(false);
-            };
-            
-            modalElement.querySelector('.modal-cancel').onclick = () => {
-                close();
-                resolve(false);
-            };
-            
-            modalElement.querySelector('.modal-confirm').onclick = () => {
-                close();
-                resolve(true);
-            };
-            
-            modalElement.querySelector('.modal-backdrop').onclick = () => {
-                close();
-                resolve(false);
-            };
-        });
+            throw error;
+        }
     },
-    
-    async confirm(message) {
-        return this.show('Onay', `<p>${message}</p>`);
+
+    // User management
+    users: {
+        async add() {
+            const modal = document.getElementById('editModal');
+            if (!modal) {
+                console.error('Edit modal not found');
+                return;
+            }
+
+            try {
+                // Reset form
+                document.getElementById('editForm').reset();
+                document.getElementById('editUserId').value = '';
+                
+                // Show modal
+                modal.style.display = 'block';
+            } catch (error) {
+                console.error('Error in add:', error);
+                alert('Kullanıcı ekleme formu açılırken bir hata oluştu');
+            }
+        },
+
+        async edit(userId) {
+            try {
+                const modal = document.getElementById('editModal');
+                if (!modal) {
+                    throw new Error('Edit modal not found');
+                }
+
+                const data = await this.get(userId);
+                
+                if (data.success && data.data) {
+                    const user = data.data;
+                    
+                    // Fill form
+                    document.getElementById('editUserId').value = user.id;
+                    document.getElementById('editUsername').value = user.username;
+                    document.getElementById('editEmail').value = user.email;
+                    document.getElementById('editCredits').value = user.credits;
+                    document.getElementById('editIsAdmin').checked = user.is_admin == 1;
+                    
+                    // Show modal
+                    modal.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error in edit:', error);
+                alert('Kullanıcı bilgileri yüklenirken bir hata oluştu');
+            }
+        },
+
+        async get(userId) {
+            return await app.request(`users.php?id=${userId}`);
+        },
+
+        async submitEdit() {
+            try {
+                const userId = document.getElementById('editUserId').value;
+                const data = {
+                    id: userId,
+                    username: document.getElementById('editUsername').value,
+                    email: document.getElementById('editEmail').value,
+                    password: document.getElementById('editPassword').value,
+                    credits: document.getElementById('editCredits').value,
+                    is_admin: document.getElementById('editIsAdmin').checked ? 1 : 0
+                };
+
+                const response = await app.request('users.php', {
+                    method: userId ? 'PUT' : 'POST',
+                    body: JSON.stringify(data)
+                });
+
+                if (response.success) {
+                    location.reload();
+                }
+            } catch (error) {
+                console.error('Error in submitEdit:', error);
+                alert('Kullanıcı kaydedilirken bir hata oluştu');
+            }
+        },
+
+        async delete(userId) {
+            try {
+                if (!confirm('Bu kullanıcıyı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
+                    return;
+                }
+
+                const response = await app.request('users.php', {
+                    method: 'DELETE',
+                    body: JSON.stringify({ id: userId })
+                });
+
+                if (response.success) {
+                    location.reload();
+                }
+            } catch (error) {
+                console.error('Error in delete:', error);
+                alert('Kullanıcı silinirken bir hata oluştu');
+            }
+        }
     },
-    
-    async prompt(message, defaultValue = '') {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'form-control';
-        input.value = defaultValue;
-        
-        const result = await this.show(message, input);
-        return result ? input.value : null;
+
+    // Initialize app
+    init() {
+        try {
+            // Close modal when clicking outside
+            window.onclick = function(event) {
+                const modals = document.getElementsByClassName('modal');
+                for (let modal of modals) {
+                    if (event.target == modal) {
+                        modal.style.display = 'none';
+                    }
+                }
+            };
+
+            // Make global functions available
+            window.editUser = (userId) => app.users.edit(userId);
+            window.deleteUser = (userId) => app.users.delete(userId);
+            window.addUser = () => app.users.add();
+
+            console.log('App initialized successfully');
+        } catch (error) {
+            console.error('Error initializing app:', error);
+        }
     }
 };
 
-// Export utilities
-window.notifications = notifications;
-window.modal = modal;
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => app.init()); 

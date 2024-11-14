@@ -1,47 +1,10 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-function login($username, $password) {
-    global $db;
-    
-    try {
-        $stmt = $db->prepare("SELECT id, username, password, role FROM users WHERE username = ? AND is_active = 1");
-        if (!$stmt) {
-            error_log("Failed to prepare login statement: " . $db->error);
-            return false;
-        }
-        
-        $stmt->bind_param("s", $username);
-        if (!$stmt->execute()) {
-            error_log("Failed to execute login statement: " . $stmt->error);
-            return false;
-        }
-        
-        $result = $stmt->get_result();
-        if ($user = $result->fetch_assoc()) {
-            if (password_verify($password, $user['password'])) {
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['role'] = $user['role'];
-                $_SESSION['last_activity'] = time();
-                
-                // Update last login
-                $db->query("UPDATE users SET last_login = NOW() WHERE id = {$user['id']}");
-                return true;
-            }
-        }
-        
-        return false;
-    } catch (Exception $e) {
-        error_log("Login error: " . $e->getMessage());
-        return false;
-    }
+function check_auth() {
+    return isset($_SESSION['user_id']);
 }
 
 function is_admin() {
-    return isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
+    return isset($_SESSION['user_id']) && isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1;
 }
 
 function get_user_id() {
@@ -49,12 +12,51 @@ function get_user_id() {
 }
 
 function get_username() {
-    return $_SESSION['username'] ?? '';
+    return $_SESSION['username'] ?? null;
+}
+
+function login($username, $password) {
+    global $db;
+    
+    try {
+        error_log("Login attempt for username: " . $username);
+        
+        $stmt = $db->prepare("SELECT id, password, is_admin FROM users WHERE username = ?");
+        if (!$stmt) {
+            error_log("Login prepare failed: " . $db->getConnection()->error);
+            return false;
+        }
+        
+        $stmt->bind_param("s", $username);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($user = $result->fetch_assoc()) {
+            error_log("User found, checking password...");
+            error_log("Stored hash: " . $user['password']);
+            error_log("Is admin: " . ($user['is_admin'] ? 'Yes' : 'No'));
+            
+            if (password_verify($password, $user['password'])) {
+                error_log("Password verified successfully");
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $username;
+                $_SESSION['is_admin'] = (bool)$user['is_admin'];
+                return true;
+            } else {
+                error_log("Invalid password for user: $username");
+            }
+        } else {
+            error_log("User not found: $username");
+        }
+        return false;
+    } catch (Exception $e) {
+        error_log("Login error: " . $e->getMessage());
+        return false;
+    }
 }
 
 function logout() {
     session_destroy();
-    if (isset($_COOKIE[session_name()])) {
-        setcookie(session_name(), '', time() - 3600, '/');
-    }
-}
+    header('Location: /login.php');
+    exit;
+} 

@@ -15,82 +15,110 @@ $success = '';
 $error = '';
 
 // Handle settings update
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $security->validateCSRF()) {
-    $action = $_POST['action'] ?? '';
-    
-    switch ($action) {
-        case 'update_smtp':
-            $smtp_host = $_POST['smtp_host'] ?? '';
-            $smtp_port = $_POST['smtp_port'] ?? '';
-            $smtp_user = $_POST['smtp_user'] ?? '';
-            $smtp_pass = $_POST['smtp_pass'] ?? '';
-            
-            if (empty($smtp_host) || empty($smtp_port) || empty($smtp_user)) {
-                $error = 'Tüm SMTP bilgilerini doldurun';
-            } else {
-                // Update SMTP settings in config file
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($security->validateCSRF()) {
+        switch ($_POST['action'] ?? '') {
+            case 'site_settings':
+                // Site URL ayarları
+                $site_url = rtrim($_POST['site_url'], '/');
+                $base_path = rtrim($_POST['base_path'], '/');
+                
+                // Config dosyasını güncelle
                 $config_file = '../../includes/config.php';
                 $config = file_get_contents($config_file);
                 
                 $config = preg_replace(
-                    "/define\('SMTP_HOST',\s*'.*?'\);/",
-                    "define('SMTP_HOST', '$smtp_host');",
+                    "/define\('SITE_URL',\s*'[^']*'\);/",
+                    "define('SITE_URL', '$site_url');",
                     $config
                 );
                 
                 $config = preg_replace(
-                    "/define\('SMTP_PORT',\s*\d+\);/",
-                    "define('SMTP_PORT', $smtp_port);",
+                    "/define\('BASE_PATH',\s*'[^']*'\);/",
+                    "define('BASE_PATH', '$base_path');",
                     $config
                 );
-                
-                $config = preg_replace(
-                    "/define\('SMTP_USER',\s*'.*?'\);/",
-                    "define('SMTP_USER', '$smtp_user');",
-                    $config
-                );
-                
-                if (!empty($smtp_pass)) {
-                    $config = preg_replace(
-                        "/define\('SMTP_PASS',\s*'.*?'\);/",
-                        "define('SMTP_PASS', '$smtp_pass');",
-                        $config
-                    );
-                }
                 
                 if (file_put_contents($config_file, $config)) {
-                    $success = 'SMTP ayarları güncellendi';
+                    $success = 'Site ayarları güncellendi';
                 } else {
-                    $error = 'SMTP ayarları güncellenirken bir hata oluştu';
+                    $error = 'Site ayarları güncellenirken bir hata oluştu';
                 }
-            }
-            break;
-            
-        case 'update_security':
-            $max_login = (int)$_POST['max_login'] ?? 5;
-            $lockout_time = (int)$_POST['lockout_time'] ?? 1800;
-            
-            $config_file = '../../includes/config.php';
-            $config = file_get_contents($config_file);
-            
-            $config = preg_replace(
-                "/define\('MAX_LOGIN_ATTEMPTS',\s*\d+\);/",
-                "define('MAX_LOGIN_ATTEMPTS', $max_login);",
-                $config
-            );
-            
-            $config = preg_replace(
-                "/define\('LOCKOUT_TIME',\s*\d+\);/",
-                "define('LOCKOUT_TIME', $lockout_time);",
-                $config
-            );
-            
-            if (file_put_contents($config_file, $config)) {
-                $success = 'Güvenlik ayarları güncellendi';
-            } else {
-                $error = 'Güvenlik ayarları güncellenirken bir hata oluştu';
-            }
-            break;
+                break;
+                
+            case 'update_smtp':
+                $smtp_host = $_POST['smtp_host'] ?? '';
+                $smtp_port = $_POST['smtp_port'] ?? '';
+                $smtp_user = $_POST['smtp_user'] ?? '';
+                $smtp_pass = $_POST['smtp_pass'] ?? '';
+                
+                if (empty($smtp_host) || empty($smtp_port) || empty($smtp_user)) {
+                    $error = 'Tüm SMTP bilgilerini doldurun';
+                } else {
+                    // Update SMTP settings in config file
+                    $config_file = '../../includes/config.php';
+                    $config = file_get_contents($config_file);
+                    
+                    $config = preg_replace(
+                        "/define\('SMTP_HOST',\s*'.*?'\);/",
+                        "define('SMTP_HOST', '$smtp_host');",
+                        $config
+                    );
+                    
+                    $config = preg_replace(
+                        "/define\('SMTP_PORT',\s*\d+\);/",
+                        "define('SMTP_PORT', $smtp_port);",
+                        $config
+                    );
+                    
+                    $config = preg_replace(
+                        "/define\('SMTP_USER',\s*'.*?'\);/",
+                        "define('SMTP_USER', '$smtp_user');",
+                        $config
+                    );
+                    
+                    if (!empty($smtp_pass)) {
+                        $config = preg_replace(
+                            "/define\('SMTP_PASS',\s*'.*?'\);/",
+                            "define('SMTP_PASS', '$smtp_pass');",
+                            $config
+                        );
+                    }
+                    
+                    if (file_put_contents($config_file, $config)) {
+                        $success = 'SMTP ayarları güncellendi';
+                    } else {
+                        $error = 'SMTP ayarları güncellenirken bir hata oluştu';
+                    }
+                }
+                break;
+                
+            case 'update_security':
+                $max_login = (int)$_POST['max_login'] ?? 5;
+                $lockout_time = (int)$_POST['lockout_time'] ?? 1800;
+                
+                $config_file = '../../includes/config.php';
+                $config = file_get_contents($config_file);
+                
+                $config = preg_replace(
+                    "/define\('MAX_LOGIN_ATTEMPTS',\s*\d+\);/",
+                    "define('MAX_LOGIN_ATTEMPTS', $max_login);",
+                    $config
+                );
+                
+                $config = preg_replace(
+                    "/define\('LOCKOUT_TIME',\s*\d+\);/",
+                    "define('LOCKOUT_TIME', $lockout_time);",
+                    $config
+                );
+                
+                if (file_put_contents($config_file, $config)) {
+                    $success = 'Güvenlik ayarları güncellendi';
+                } else {
+                    $error = 'Güvenlik ayarları güncellenirken bir hata oluştu';
+                }
+                break;
+        }
     }
 }
 ?>
@@ -158,6 +186,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $security->validateCSRF()) {
         <?php endif; ?>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Site Ayarları Formu -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-lg font-semibold mb-4">Site URL Ayarları</h2>
+                
+                <form method="POST" action="">
+                    <input type="hidden" name="csrf_token" value="<?php echo $security->getCSRFToken(); ?>">
+                    <input type="hidden" name="action" value="site_settings">
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700">Site URL</label>
+                        <input type="text" name="site_url" 
+                               value="<?php echo SITE_URL; ?>"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <p class="mt-1 text-sm text-gray-500">Örnek: https://www.sin-neonatologia.it/5</p>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700">Base Path</label>
+                        <input type="text" name="base_path" 
+                               value="<?php echo BASE_PATH; ?>"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                        <p class="mt-1 text-sm text-gray-500">Örnek: /5</p>
+                    </div>
+                    
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        Kaydet
+                    </button>
+                </form>
+            </div>
+
             <!-- SMTP Settings -->
             <div class="bg-white rounded-lg shadow-sm p-6">
                 <h2 class="text-lg font-semibold mb-4">SMTP Ayarları</h2>
